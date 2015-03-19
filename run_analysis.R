@@ -23,7 +23,7 @@ activity_labels <- read.table("activity_labels.txt")[, 2]
 features <- read.table('features.txt')[, 2]
 
 # remove parentheses in column names
-features = gsub('[-()]', '', features)
+features <- gsub('[()]', '', features)
 
 # read test data
 test_x <- read.table('test/X_test.txt')
@@ -38,14 +38,14 @@ train_subject <- read.table("train/subject_train.txt")
 names(test_x) <- features
 names(train_x) <- features
 
-# filter only column names with "mean" or "std" in them
-extract_features <- grepl("mean|std", features)
+# filter only column names with "-mean" or "-std" suffix
+extract_features <- grepl("-mean|-std", features)
 
 # subset data on those column names
-test_x <- test_x[, extract_features]
-train_x <- train_x[, extract_features]
+test_x <- test_x[, features[extract_features]]
+train_x <- train_x[, features[extract_features]]
 
-# map activity labels into column instead of activity IDs
+# map activity labels into column next to of activity IDs
 test_y[, 2] <- activity_labels[test_y[, 1]]
 train_y[, 2] <- activity_labels[train_y[, 1]]
 
@@ -62,11 +62,33 @@ train_data <- cbind(as.data.table(train_subject), train_y, train_x)
 # merge test and train data
 data <- rbind(test_data, train_data)
 
+# define what columns will be ID and what contain variables
 id_labels <- c("subject", "activity_id", "activity_label")
 data_labels <- setdiff(colnames(data), id_labels)
+
+# melt data putting all measurements as groups underneath one another like this:
+#
+# subject activity_id activity_label        variable     value
+# 1:       2           5       STANDING tBodyAcc-mean-X 0.2571778
+# 2:       2           5       STANDING tBodyAcc-mean-X 0.2860267
+# 3:       2           5       STANDING tBodyAcc-mean-X 0.2754848
+# ...............................................................
+# n-2:    30           2 WALKING_UPSTAIRS fBodyBodyGyroJerkMag-meanFreq  0.19503401
+# n-1:    30           2 WALKING_UPSTAIRS fBodyBodyGyroJerkMag-meanFreq  0.01386542
+# n:      30           2 WALKING_UPSTAIRS fBodyBodyGyroJerkMag-meanFreq -0.05840161
 melt_data <- melt(data, id = id_labels, measure.vars = data_labels)
 
-# Apply mean function to dataset using dcast function
+# Apply mean function to dataset using dcast function.
 tidy_data = dcast(melt_data, subject + activity_label ~ variable, mean)
 
+# Our tidy data now looks like this:
+# 
+# subject activity_label tBodyAcc-mean-X tBodyAcc-mean-Y     ...
+# 1       1         LAYING       0.2215982    -0.040513953   ...
+# 2       1        SITTING       0.2612376    -0.001308288   ...
+# 3       1       STANDING       0.2789176    -0.016137590   ...
+# 
+# where in rows we have means of measurements grouped by subject and activity.
+
+# Let's store it in plain text file.
 write.table(tidy_data, file = "tidy_data.txt")
